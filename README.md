@@ -1,6 +1,6 @@
 # ucsd_robocar_hub2
 
-<img src="ucsd_ros_logo.png">
+<img src="ucsd_ros2_logos.png">
 
 This is the UCSD robocar hub metapackage. It contains packages for our sensors, actuators, independent path planning algorithms and the navigation package that functions as the "brain" by being able to call all of the other packages and do some interesting things by combining multiple types of path planning and the sensors used to accomplish this. All packages are written in **ROS2** and have been tested on **Foxy**.
 
