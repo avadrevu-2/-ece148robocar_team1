@@ -16,7 +16,8 @@ Adding new packages:
 1. `git push`
 
 Updating packages: 
-1. `git submodule update --remote --merge`
+1. If local changes have been made, the command below will fail unless you commit them (`git commit -m "message"`) or stash (`git stash`) them! 
+1. `git submodule update --remote --merge` **Pay attention to the output of this command, to make sure it did not fail or Abort...**
 
 Removing packages:
 1. `git submodule deinit <submodule>`
