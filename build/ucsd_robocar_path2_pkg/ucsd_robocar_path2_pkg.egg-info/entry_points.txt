@@ -1,3 +1,0 @@
-[console_scripts]
-simple_obstacle_detection_node = ucsd_robocar_path2_pkg.simple_obstacle_detection_node:main
-
