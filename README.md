@@ -6,7 +6,7 @@ This is the UCSD robocar hub metapackage. It contains packages for our sensors, 
 
 # Getting Started 
 1. Its suggested to just pull the <a href="https://hub.docker.com/r/djnighti/ucsd_robocar" >docker image</a> for this metapackage for faster development instead of having to install all the (many) dependencies required to get this metapackage working.
-1. Next, go to the <a href="https://gitlab.com/ucsd_robocar/ucsd_robocar_nav2_pkg" >ucsd_robocar_nav2_pkg</a> and start with the README.md as it explains in detail how it can communicate to all of the other packages, has step-by-step instructions for getting the camera navigation working and plenty of other details.
+1. Next, go to the <a href="https://gitlab.com/ucsd_robocar2/ucsd_robocar_nav2_pkg#work-flow-to-use-this-repository" >ucsd_robocar_nav2_pkg</a> and start with the README.md as it explains in detail how it can communicate to all of the other packages, has step-by-step instructions for getting the camera navigation working and plenty of other details.
 1. Each package has its own dedicated README.md that explains in more detail how it works and what launch/nodes/topics it has to offer. To get to each of the packages, just click on any of the submodules above. 
 
 # Updating Repos
