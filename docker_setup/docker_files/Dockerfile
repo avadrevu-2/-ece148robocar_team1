@@ -125,8 +125,13 @@ RUN apt-get update && \
     joystick \
     gedit \
     gedit-plugin-multi-edit \
-    gedit-plugins
-    
+    gedit-plugins \
+    python3-tk
+
+RUN apt-get update && \
+    pip3 install \
+    pandas
+
 #
 #
 ####################################################################################################################################################
