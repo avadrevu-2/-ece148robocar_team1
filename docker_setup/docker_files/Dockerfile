@@ -130,7 +130,8 @@ RUN apt-get update && \
 
 RUN apt-get update && \
     pip3 install \
-    pandas
+    pandas \
+    control
 
 #
 #
