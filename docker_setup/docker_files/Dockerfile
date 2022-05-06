@@ -416,9 +416,9 @@ RUN [\
 # --------------------------------------------------------------------------------------------------------------------------------------------------
 WORKDIR /home/projects/ros1_ws/src
 RUN git clone https://gitlab.com/ucsd_robocar/ucsd_robocar_hub1.git
-#    cd ucsd_robocar_hub1 && \
-#    git submodule update --init --recursive && \
-#    git submodule update --remote --merge
+    cd ucsd_robocar_hub1 && \
+    git submodule init && \
+    git submodule update --remote --merge
 WORKDIR /home/projects/ros1_ws
 RUN [\
     "/bin/bash", \
