@@ -403,6 +403,29 @@ RUN [\
 
 # http://localhost:8888
 
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  - - - - - - - - - - - - 
+# Get f1tenth simulator
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  - - - - - - - - - - - - 
+
+RUN mkdir -p /home/projects/sim2_ws/src
+WORKDIR /home/projects/sim2_ws/src
+RUN git clone https://github.com/f1tenth/f1tenth_gym
+RUN git clone https://github.com/f1tenth/f1tenth_gym_ros.git
+
+WORKDIR /home/projects/sim2_ws/src/f1tenth_gym
+RUN pip3 install -e gym/
+WORKDIR /home/projects/sim2_ws
+
+
+RUN [\
+    "/bin/bash", \
+    "-c", \
+    "source /opt/ros/foxy/setup.bash && \
+    rosdep update && rosdep install --from-path src --ignore-src -y && \
+    colcon build && \
+    source install/setup.bash"\
+    ]
+
 #
 #
 ####################################################################################################################################################
