@@ -130,7 +130,8 @@ RUN apt-get update && \
 
 RUN apt-get update && \
     pip3 install \
-    pandas
+    pandas \
+    control
 
 #
 #
@@ -363,16 +364,34 @@ RUN [\
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  - - - - - - - - - - - - 
 # Actuator inventory (both ROS1 and ROS2 compatiable)
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  - - - - - - - - - - - - 
-WORKDIR /
 
 # -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  
-# Get Vesc
+# Get VESC drivers --ROS2
 # -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  
+WORKDIR /home/projects/sensor2_ws/src/vesc/src/
+RUN git clone --branch ros2 https://github.com/f1tenth/vesc.git
+RUN git clone --branch foxy-devel https://github.com/f1tenth/ackermann_mux.git
+RUN git clone --branch foxy-devel https://github.com/f1tenth/teleop_tools.git
+WORKDIR /home/projects/sensor2_ws/src/vesc
+RUN [\
+    "/bin/bash", \
+    "-c", \
+    "source /opt/ros/foxy/setup.bash && \
+    rosdep update && rosdep install --from-path src --ignore-src -y && \
+    colcon build && \
+    source install/setup.bash"\
+    ]
+
+
+# -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  
+# Get PyVesc (both ROS1 and ROS2 compatiable)
+# -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -
+WORKDIR /  
 RUN apt-get update
 RUN pip3 install git+https://github.com/LiamBindle/PyVESC
     
 # -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  
-# Get adafruit servokit
+# Get adafruit servokit (both ROS1 and ROS2 compatiable)
 # -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  
 RUN apt-get update
 RUN pip3 install \
@@ -402,6 +421,34 @@ RUN [\
 
 # http://localhost:8888
 
+
+# --------------------------------------------------------------------------------------------------------------------------------------------------
+# simulator ws
+# --------------------------------------------------------------------------------------------------------------------------------------------------
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  - - - - - - - - - - - - 
+# Get f1tenth simulator --ROS2
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  - - - - - - - - - - - - 
+
+RUN mkdir -p /home/projects/sim2_ws/src
+WORKDIR /home/projects/sim2_ws/src
+RUN git clone https://github.com/f1tenth/f1tenth_gym
+RUN git clone https://github.com/f1tenth/f1tenth_gym_ros.git
+
+WORKDIR /home/projects/sim2_ws/src/f1tenth_gym
+RUN pip3 install -e gym/
+WORKDIR /home/projects/sim2_ws
+
+
+RUN [\
+    "/bin/bash", \
+    "-c", \
+    "source /opt/ros/foxy/setup.bash && \
+    rosdep update && rosdep install --from-path src --ignore-src -y && \
+    colcon build && \
+    source install/setup.bash"\
+    ]
+
 #
 #
 ####################################################################################################################################################
@@ -415,9 +462,9 @@ RUN [\
 # --------------------------------------------------------------------------------------------------------------------------------------------------
 WORKDIR /home/projects/ros1_ws/src
 RUN git clone https://gitlab.com/ucsd_robocar/ucsd_robocar_hub1.git
-#    cd ucsd_robocar_hub1 && \
-#    git submodule update --init --recursive && \
-#    git submodule update --remote --merge
+    cd ucsd_robocar_hub1 && \
+    git submodule init && \
+    git submodule update --remote --merge
 WORKDIR /home/projects/ros1_ws
 RUN [\
     "/bin/bash", \
