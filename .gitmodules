@@ -16,3 +16,6 @@
 [submodule "ucsd_robocar_path2_pkg"]
 	path = ucsd_robocar_path2_pkg
 	url = https://gitlab.com/ucsd_robocar2/ucsd_robocar_path2_pkg.git
+[submodule "ucsd_robocar_basics2_pkg"]
+	path = ucsd_robocar_basics2_pkg
+	url = https://gitlab.com/ucsd_robocar2/ucsd_robocar_basics2_pkg.git
