@@ -80,6 +80,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-foxy-slam-toolbox \
     ros-foxy-ackermann-msgs \
     ros-foxy-serial-driver \
+    ros-foxy-depthai-ros \
     && rm -rf /var/lib/apt/lists/*
 
 # Not sure if these are needed...
@@ -299,20 +300,20 @@ RUN mkdir -p /home/projects/sensor2_ws/src/cameras/oakd/src
 # -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  
 # Get OAK-D --ROS2
 # -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  
-WORKDIR /home/projects/sensor2_ws/src/cameras/oak/src
-RUN git clone https://github.com/tiiuae/depthai_ctrl.git
-#WORKDIR /home/projects/sensor2_ws/src/cameras/oak
-#RUN [\
-#    "/bin/bash", \
-#    "-c", \
-#    "wget -qO- https://raw.githubusercontent.com/luxonis/depthai-ros/main/install_dependencies.sh | bash && \
-#    wget https://raw.githubusercontent.com/luxonis/depthai-ros/main/underlay.repos && \
-#    vcs import src < underlay.repos && \
-#    source /opt/ros/foxy/setup.bash && \
-#    rosdep update && rosdep install --from-path src --ignore-src -y && \
-#    colcon build && \
-#    source install/setup.bash"\
-#    ]
+WORKDIR /home/projects/sensor2_ws/src/cameras/oakd/src
+RUN git clone https://github.com/Triton-AI/multi_cam_oak_lite.git
+WORKDIR /home/projects/sensor2_ws/src/cameras/oakd
+RUN [\
+    "/bin/bash", \
+    "-c", \
+    "source /opt/ros/foxy/setup.bash && \
+    echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="03e7", MODE="0666"' | tee /etc/udev/rules.d/80-movidius.rules && \
+    udevadm control --reload-rules && udevadm trigger && \
+    rosdep update && rosdep install --from-path src --ignore-src -y && \
+    colcon build && \
+    source install/setup.bash" \
+    ]
+
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -  - - - - - - - - - - - - 
 # IMU inventory
