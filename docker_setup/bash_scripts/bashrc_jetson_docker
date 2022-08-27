@@ -128,11 +128,58 @@ fi
 #fi
 cd /home/projects
 
-alias source_ros1_init='source /opt/ros/noetic/setup.bash; source /home/projects/sensor1_ws/src/lidars/ld06/devel/setup.bash; cd /home/projects/ros1_ws; rm -rf build devel; catkin_make; source devel/setup.bash; roscore'
-alias source_ros1='source /opt/ros/noetic/setup.bash; source /home/projects/sensor1_ws/src/lidars/ld06/devel/setup.bash; cd /home/projects/ros1_ws; source devel/setup.bash'
-alias source_ros2='source /opt/ros/foxy/setup.bash; source /home/projects/sensor2_ws/src/imu/artemis_openlog/install/setup.bash;source /home/projects/rosboard_ws/install/setup.bash; source /home/projects/sensor2_ws/src/lidars/ld06/ros2/install/setup.bash; source /home/projects/ros2_ws/install/setup.bash; cd /home/projects/ros2_ws;'
-alias build_ros2='cd /home/projects/ros2_ws; colcon build; source install/setup.bash;'
-alias clean_build_ros2='cd /home/projects/ros2_ws; rm -rf build/ install/ log/; colcon build; source install/setup.bash;'
-alias source_ros_bridge='source /opt/ros/noetic/setup.bash; source /opt/ros/foxy/setup.bash; source /home/projects/ros2_ws/install/setup.bash; ros2 launch ucsd_robocar_nav2_pkg ros_bridge_launch.launch.py;'
+function source_ros1_pkg() {
+  source /opt/ros/noetic/setup.bash
+  source /home/projects/sensor1_ws/src/lidars/ld06/devel/setup.bash
+  cd /home/projects/ros1_ws
+  source devel/setup.bash
+}
 
-export ROS_DOMAIN_ID=69
+function source_ros1_init() {
+  source_ros1_pkg
+  rm -rf build/ devel/
+  catkin_make
+  source devel/setup.bash
+  roscore
+}
+
+function source_ros1() {
+  source_ros1_pkg
+  cd /home/projects/ros1_ws
+}
+
+function source_ros2_pkg() {
+  source /opt/ros/foxy/setup.bash
+  source /home/projects/sensor2_ws/src/cameras/oakd/install/setup.bash
+  source /home/projects/sensor2_ws/src/imu/artemis_openlog/install/setup.bash
+  source /home/projects/sensor2_ws/src/vesc/install/setup.bash
+  source /home/projects/sensor2_ws/src/lidars/ld06/ros2/install/setup.bash
+  source /home/projects/rosboard_ws/install/setup.bash
+}
+
+function source_ros2() {
+  source_ros2_pkg
+  cd /home/projects/ros2_ws
+}
+
+function build_ros2() {
+  cd /home/projects/ros2_ws 
+  rm -rf build/ install/ log/ 
+  colcon build 
+  source install/setup.bash
+}
+
+function source_ros_bridge() {
+  source /opt/ros/noetic/setup.bash
+  source /opt/ros/foxy/setup.bash
+  source /home/projects/ros2_ws/install/setup.bash
+  ros2 launch ucsd_robocar_nav2_pkg ros_bridge_launch.launch.py
+}
+
+function upd_ucsd_robocar() {
+  cd /home/projects/ros2_ws/src/ucsd_robocar_hub2
+  git submodule update --remote --merge
+  build_ros2
+}
+
+export ROS_DOMAIN_ID=96
