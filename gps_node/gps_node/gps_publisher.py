@@ -13,10 +13,10 @@ class GpsPublisher(Node):
         # call super() in the constructor in order to initialize the Node object with node name as only parameter
         super().__init__('gps_publisher')
         self.publisher_ = self.create_publisher(Gps, '/GpsFix', 1)
-        timer_period = 0.5 # define the timer period 
+        timer_period = 0.2 # define the timer period 
         
         # open serial port
-        self.ser = serial.Serial('/dev/ttyUSB1', 115200)
+        self.ser = serial.Serial('/dev/ttyUSB2', 115200)
         # GPS message
         self.gps_msg = Gps()
 
@@ -40,6 +40,8 @@ class GpsPublisher(Node):
                 self.get_logger().info(f"{lat}, {lon}, {parsed.timestamp}")
                 self.gps_msg.latitude = dms2dec(lat)
                 self.gps_msg.longitude = dms2dec(lon)
+                self.gps_msg.header.stamp = self.get_clock().now().to_msg()
+
                 self.gps_msg.time = datetime.datetime.now().timestamp()
                 self.publisher_.publish(self.gps_msg)
 
