@@ -10,7 +10,7 @@ class IMURawPublisher(Node):
     def __init__(self):
         # call super() in the constructor in order to initialize the Node object with node name as only parameter
         super().__init__('imu_raw_publisher')
-        self.publisher_ = self.create_publisher(Imu, '/imu/data', 1)
+        self.publisher_ = self.create_publisher(Imu, '/imu', 1)
         timer_period = 0.2 # define the timer period 
         
         # open serial port
