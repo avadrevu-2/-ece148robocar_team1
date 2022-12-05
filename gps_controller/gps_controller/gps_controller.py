@@ -5,7 +5,7 @@ from geometry_msgs.msg import PoseStamped
 from sensor_msgs.msg import Imu
 from std_msgs.msg import Float32MultiArray
 from osmnx import bearing, distance
-from pyvesc import VESC
+import utm
 from .generate_path import generate_path
 
 
@@ -89,7 +89,7 @@ class GpsController(Node):
             
             # If we aren't close enough to waypoint, calculate pid
             else:
-                cross_track_error, delta_theta = self.calculate_pid()
+                cross_track_error, delta_theta = self.calculate_pid(distance_to_goal)
                 msg: list[float] = [float(cross_track_error), float(delta_theta)]
                 self.error_msg.data = msg
                 self._error_publisher.publish(self.error_msg)
@@ -108,29 +108,32 @@ class GpsController(Node):
             self._error_publisher.publish(self.error_msg)
 
 
-    def calculate_pid(self):
+    def calculate_pid(self, distance_to_goal):
         """
         Function to calculate pid error values using two
         methods: Cross Track Error and Heading Error.
 
         References:
-        https://honors.libraries.psu.edu/files/final_submissions/3482
-        http://www.movable-type.co.uk/scripts/latlong.html
+        (1) https://honors.libraries.psu.edu/files/final_submissions/3482
+        (2) http://www.movable-type.co.uk/scripts/latlong.html
         """
 
-        # Cross Track Error
-        a = self.current_waypoint_finish[1] - self.current_waypoint_start[1]
-        b = self.current_waypoint_start[0] - self.current_waypoint_finish[0]
-        c = self.current_waypoint_finish[0]*self.current_waypoint_start[1] - self.current_waypoint_start[0]*self.current_waypoint_finish[1]
-        cross_track_error_2 = math.sqrt((a*self.current_position[0])**2 + (b*self.current_position[1])**2 + c**2) / math.sqrt((a*a)+(b*b))
-
-        # Cross Track Error different Formula
+        # Cross Track Error Formula 1 from reference (1)
         R = 6371e3
         d = self.distance_between_gps_points(self.current_waypoint_start, self.current_position) / R
         delta_1 = self.bearing_between_gps_points(self.current_waypoint_start, self.current_position) * (math.pi / 180)
         delta_2 = self.bearing_between_gps_points(self.current_waypoint_start, self.current_waypoint_finish) * (math.pi / 180)
         self.get_logger().info(f"D: {d}, delta1: {delta_1}, delta2: {delta_2}")
-        cross_track_error = math.asin(math.sin(d)*math.sin(delta_1-delta_2)) * R;
+        cross_track_error_1 = math.asin(math.sin(d)*math.sin(delta_1-delta_2)) * R;
+
+        # Cross Track Error Formula 2 from reference (2)
+        start_x, start_y, _, _ = utm.from_latlon(self.current_waypoint_start[0], self.current_waypoint_start[1])
+        finish_x, finish_y, _, _ = utm.from_latlon(self.current_waypoint_finish[0], self.current_waypoint_finish[1])
+        current_x, current_y, _, _ = utm.from_latlon(self.current_position[0], self.current_position[1])
+        a = start_y - finish_y
+        b = finish_x - start_x
+        c = start_x*finish_y - finish_x*start_y
+        cross_track_error_2 = (-1)*((a*current_x) + (b*current_y) + c) / math.sqrt((a*a)+(b*b))
 
         # Heading Error
         bearing_to_goal = self.bearing_between_gps_points(self.current_position, self.current_waypoint_finish)
@@ -146,7 +149,13 @@ class GpsController(Node):
             delta_theta -= 360
         delta_theta = delta_theta / 180.0  # normalize from -1 to 1
         
-        self.get_logger().info(f"Delta Theta: {delta_theta}, Cross Track: {cross_track_error}, Cross Track 2: {cross_track_error_2}")
+        # Average the two cross track calculations
+        cross_track_error = ((cross_track_error_1 + cross_track_error_2) / 2.0) 
+
+        # Optional: Scale cross track error by distance to point
+        cross_track_error = cross_track_error / distance_to_goal
+
+        self.get_logger().info(f"Delta Theta: {delta_theta}, Cross Track Average: {cross_track_error}")
         return cross_track_error, delta_theta
 
 
