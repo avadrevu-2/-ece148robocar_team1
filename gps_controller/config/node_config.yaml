@@ -1,0 +1,5 @@
+# param: 1-on, 0-off
+
+# sensors
+gps_launch: 1
+imu_launch: 1
