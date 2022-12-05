@@ -57,7 +57,7 @@ def generate_path(origin_point, target_point, perimeter, logger, mode):
 
             # save graph file
             osm_xml.save_graph_xml(roadgraph, filepath=graph_path)
-            logger.info("Downloaded graph file and saved it")
+            logger.info("Saved graph file")
 
         # Get origin and target nodes from graph file
         logger.info("Calculating nodes")
@@ -72,6 +72,7 @@ def generate_path(origin_point, target_point, perimeter, logger, mode):
         coordinates = []
         for i in route:
             point = roadgraph.nodes[i]
+            # format is (y, x) = (lat, lon)
             coordinates.append((point['y'], point['x']))
         logger.info("Converted path to points")
         return coordinates
