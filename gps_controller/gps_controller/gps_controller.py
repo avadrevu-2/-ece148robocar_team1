@@ -113,8 +113,9 @@ class GpsController(Node):
         Function to calculate pid error values using two
         methods: Cross Track Error and Heading Error.
 
-        Reference:
+        References:
         https://honors.libraries.psu.edu/files/final_submissions/3482
+        http://www.movable-type.co.uk/scripts/latlong.html
         """
 
         # Cross Track Error
