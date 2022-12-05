@@ -22,7 +22,7 @@ class PidController(Node):
         self.declare_parameters(
             namespace='',
             parameters=[
-                ('Kp_steering', 5),
+                ('Kp_steering', 1),
                 ('Ki_steering', 0),
                 ('Kd_steering', 0.01),
                 ('Kp_heading', 0.4),
@@ -86,8 +86,11 @@ class PidController(Node):
         # Call controller
         self.create_timer(self.Ts, self.controller)
 
+
     def error_measurement(self, error_data):
-        # Get data from error_data message
+        """
+        Get data from error_data message
+        """
         error_data_check = np.array([error_data.data[0], error_data.data[1]])
         if not (np.isnan(error_data_check).any()):
             self.e_y_buffer = error_data.data[0]  # this is cross_track error
@@ -95,12 +98,20 @@ class PidController(Node):
 
     
     def get_latest_measurements(self):
-        # add data from buffer to variables
+        """
+        Adds data from buffer to variables
+        """
         self.e_y = self.e_y_buffer
         self.e_theta = self.e_theta_buffer
         self.current_time = self.get_clock().now().to_msg()
 
+
     def controller(self):
+        """
+        Main PID controller, will loop until error values
+        are set really high. Does PID calculations and controls
+        motor.
+        """
         # Get latest measurement
         self.get_latest_measurements()
 
@@ -145,7 +156,9 @@ class PidController(Node):
 
 
     def remap(self, value):
-        # Remap from [-1 to 1] into [0 to 1]
+        """
+        Remap value from [-1 to 1] into [0 to 1]
+        """
         input_start = -1
         input_end = 1
         output_start = self.max_left_steering
@@ -155,6 +168,9 @@ class PidController(Node):
 
 
     def clamp(self, value, upper_bound, lower_bound=None):
+        """
+        Clamps input value to upper and lower bound
+        """
         if lower_bound==None:
             lower_bound = -upper_bound # making lower bound symmetric about zero
         if value < lower_bound:
@@ -166,17 +182,28 @@ class PidController(Node):
         return value_c 
 
 
+    def shutdown_vesc(self):
+        """
+        Shuts down communication with VESC
+        """
+        self.vesc.__exit__(None, None, None)
+        self.get_logger().info("Shutdown VESC")
+
+
 def main(args=None):
     rclpy.init(args=args)
     pid_publisher = PidController()
     try:
         rclpy.spin(pid_publisher)
+        pid_publisher.shutdown_vesc()
         pid_publisher.destroy_node()
         rclpy.shutdown()
     except KeyboardInterrupt:
         pid_publisher.get_logger().info(f'Shutting down {NODE_NAME}...')
         pid_publisher.vesc.set_rpm(int(pid_publisher.zero_speed))
         pid_publisher.vesc.set_servo(pid_publisher.no_steering)
+        time.sleep(1)
+        pid_publisher.shutdown_vesc()
         time.sleep(1)
         pid_publisher.destroy_node()
         rclpy.shutdown()

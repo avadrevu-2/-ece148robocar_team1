@@ -10,6 +10,10 @@ graph_file = 'current_path.osm'
 
 def generate_path(origin_point, target_point, perimeter, logger, mode):
     """
+    Generates a path from an origin point to a target point. If graph_file name is found
+    in the graphs_folder, load that. Otherwise, download a new graph file from the
+    internet with the origin point and perimeter as inputs.
+    
     Reference: https://github.com/ThomasAFink/optimal_path_dijkstra_for_data_science/blob/main/dijkstra_map.py
     """
     try:

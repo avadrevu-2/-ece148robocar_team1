@@ -25,7 +25,7 @@ class GpsPublisher(Node):
     def parse_msg(self, msg):
         """
         Function to parse msg from gps sensor, convert from
-        degrees to decimal, then covert to utm. 
+        degrees to decimal
         Stores the output in self.position_x and self.position_y
         """
         try:     
@@ -44,6 +44,9 @@ class GpsPublisher(Node):
 
 
     def gps_pub_callback(self):
+        """
+        Function called on timer to publish GPS message
+        """
         try:
             msg = self.ser.readline().decode("utf-8")
             # Check that msg type is GNRMC

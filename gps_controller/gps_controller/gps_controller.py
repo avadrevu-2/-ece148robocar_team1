@@ -41,7 +41,6 @@ class GpsController(Node):
         self.current_position = (0, 0)
         self.previous_position = (0, 0)
         
-
         # Set Path variables
         self.target_index = 0
         self.target_final = 0
@@ -51,6 +50,7 @@ class GpsController(Node):
         self.running = False
         self.finished = False
 
+        # Start Timer
         self.get_logger().info("Setup Complete")
         self.timer = self.create_timer(1.0 / refresh_hz, self.error_publisher)
         
@@ -189,6 +189,10 @@ class GpsController(Node):
         
 
     def imu_callback(self, imu_msg: Imu):
+        """
+        Function that's called when IMU msg is received, 
+        only storing heading
+        """
         try:
             self.current_heading = float(imu_msg.orientation.z)
 
@@ -197,6 +201,10 @@ class GpsController(Node):
 
 
     def gps_callback(self, gps_msg: PoseStamped):
+        """
+        Function that's called when GPS msg is received,
+        storing current lat lon and previous lat lon
+        """
         try:
             # Keep track of previous lat lon
             prev_lat = self.current_position[0]
@@ -237,10 +245,6 @@ class GpsController(Node):
         b = bearing.calculate_bearing(lat1, lon1, lat2, lon2)
         return b
 
-
-    def shutdown_vesc(self):
-        # self.vesc.__exit__(None, None, None)
-        self.get_logger().info("Shutdown VESC")
 
 def main(args=None):
     rclpy.init(args=args) # initialize the ROS communication

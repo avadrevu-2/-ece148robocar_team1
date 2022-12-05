@@ -21,6 +21,10 @@ class IMURawPublisher(Node):
 
 
     def imu_pub_callback(self):
+        """
+        Timer callback to read IMU data from serial port and publish
+        IMU message
+        """
         try:
             # Read from Serial
             msg = self.ser.readline().decode("utf-8")
