@@ -185,15 +185,17 @@ class GpsController(Node):
         self.get_logger().info(f"Headings: To Goal: {bearing_to_goal}, Current: {current_bearing}, To Previous: {bearing_to_previous}")
 
         # Calculate PID Errors
-        # Option 1: Using y2-y1 and x2-x1
-        delta_x = self.current_position[0] - self.target_position[0]
-        delta_y = self.current_position[1] - self.target_position[1]
+        delta_x = distance.great_circle_vec(self.current_position[0], self.current_position[1], self.target_position[0], self.target_position[1])
+        delta_y = delta_x
         
-        # Option 2: Using y as distance to waypoint and x as 0
-        delta_x = 0
-        delta_y = distance.great_circle_vec(self.current_position[0], self.current_position[1], self.target_position[0], self.target_position[1])
-        
+        # Change heading error to be on -180 to 180 scale
         delta_theta = current_bearing - bearing_to_goal
+        if delta_theta < -180:
+            delta_theta += 360
+        elif delta_theta > 180:
+            delta_theta -= 360
+        delta_theta = delta_theta / 180.0  # normalize
+        
         return delta_x, delta_y, delta_theta
 
     def distance_between_gps_points(self, pos1, pos2):
