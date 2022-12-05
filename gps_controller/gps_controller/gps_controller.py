@@ -35,7 +35,7 @@ class GpsController(Node):
         # Create Subscribers and Publisher
         self.imu_subscriber = self.create_subscription(Imu, imu_msg, self.imu_callback, 10)
         self.gps_subscriber = self.create_subscription(PoseStamped, gps_msg, self.gps_callback, 10)
-        self.error_publisher = self.create_publisher(Float32MultiArray, error_topic_name, 10)
+        self._error_publisher = self.create_publisher(Float32MultiArray, error_topic_name, 10)
         self.error_msg = Float32MultiArray()
         self.current_heading = 0.0
         self.current_position = (0, 0)
@@ -45,13 +45,102 @@ class GpsController(Node):
         # Set Path variables
         self.target_index = 0
         self.target_final = 0
+        self.current_waypoint_start = (0, 0)
+        self.current_waypoint_finish = (0, 0)
         self.path = []
         self.running = False
         self.finished = False
+
         self.get_logger().info("Setup Complete")
-        self.timer = self.create_timer(1.0 / refresh_hz, self.controller)
+        self.timer = self.create_timer(1.0 / refresh_hz, self.error_publisher)
         
     
+    def error_publisher(self):
+        """
+        Main error publisher code. Generates path from current position to 
+        target position, then starts navigating along the path.
+
+        When robot gets close enough to next waypoint, iterate that until 
+        we run out of waypoints. Calculate pid error values and send to the
+        pid controller which can control the motor accordingly. 
+        """
+        self.get_logger().info("controlling")
+
+        # If we're running, calculate the steering
+        if self.running and not self.finished:
+            # Calculate distance to goal waypoint
+            distance_to_goal = self.distance_between_gps_points(self.current_position, self.current_waypoint_finish)
+            
+            self.get_logger().info(f"Distance: {distance_to_goal}")
+            # If we're close enough to the waypoint, iterate waypoints.
+            if distance_to_goal <= self.proxim_threshold:
+                self.get_logger().info(f"Completed Waypoint {self.target_index}: ({self.target_position[0]} ,{self.target_position[1]})")
+                self.target_index += 1
+
+                # If we're done with the path, set finished to true and running to false
+                if self.target_index == self.target_final:
+                    self.get_logger().info(f"Completed all waypoints, idiling")
+                    self.finished = True
+                    self.running = False
+                # Otherwise, increment the target position to the next pos in the path
+                else:
+                    self.current_waypoint_start = self.path[self.target_index]
+                    self.current_waypoint_finish = self.path[self.target_index+1]
+            
+            # If we aren't close enough to waypoint, calculate pid
+            else:
+                cross_track_error, delta_theta = self.calculate_pid()
+                msg: list[float] = [float(cross_track_error), float(delta_theta)]
+                self.error_msg.data = msg
+                self._error_publisher.publish(self.error_msg)
+
+        # If we aren't finished and we're not running, calculate the path
+        elif not self.finished and not self.running:
+            if self.current_position[0] != 0:
+                self.get_path()
+                self.get_logger().info("Path Received!")
+            else:
+                self.get_logger().info("Waiting on GPS fix")
+
+        # Otherwise, we're finished and not running so do nothing
+        else:
+            self.error_msg.data = [100000.0, 100000.0]
+            self._error_publisher.publish(self.error_msg)
+
+
+    def calculate_pid(self):
+        """
+        Function to calculate pid error values using two
+        methods: Cross Track Error and Heading Error.
+
+        Reference:
+        https://honors.libraries.psu.edu/files/final_submissions/3482
+        """
+
+        # Cross Track Error
+        a = self.current_waypoint_finish[1] - self.current_waypoint_start[1]
+        b = self.current_waypoint_start[0] - self.current_waypoint_finish[0]
+        c = self.current_waypoint_finish[0]*self.current_waypoint_start[1] - self.current_waypoint_start[0]*self.current_waypoint_finish[1]
+        cross_track_error = abs((a*self.current_position[0]) + (b*self.current_position[1]) + c) / math.sqrt((a*a)+(b*b))
+        
+        # Heading Error
+        bearing_to_goal = self.bearing_between_gps_points(self.current_position, self.current_waypoint_finish)
+        current_bearing = self.current_heading
+
+        # Another option is to calculate current bearing with previous position
+        # current_bearing = self.bearing_between_gps_points(self.previous_position, self.current_position)
+        
+        delta_theta = current_bearing - bearing_to_goal 
+        if delta_theta < -180:  # Change heading error to be on -180 to 180 scale
+            delta_theta += 360
+        elif delta_theta > 180:
+            delta_theta -= 360
+        delta_theta = delta_theta / 180.0  # normalize from -1 to 1
+        
+        self.get_logger().info(f"Delta Theta: {delta_theta}, Cross Track: {cross_track_error}")
+        return cross_track_error, delta_theta
+
+
     def get_path(self):
         """
         Calls the generate path function using current position and target position to
@@ -60,6 +149,7 @@ class GpsController(Node):
         Also sets the target_position as the first waypoint, and sets up the final
         target in the path array.
         """
+
         try:
             # Call generate path function to create a path from current to target position
             self.path = generate_path(self.current_position, self.target_position, self.perimeter, self.get_logger(), self.mode)
@@ -67,8 +157,9 @@ class GpsController(Node):
             self.get_logger().info(f"Path: {self.path}")
             
             # Set first and final target positions of path
-            self.target_position = self.path[self.target_index]
-            self.target_final = len(self.path)
+            self.current_waypoint_start = self.path[self.target_index]
+            self.current_waypoint_finish = self.path[self.target_index+1]
+            self.target_final = len(self.path) - 1
             self.running = True  # Starts the steering controls
 
         except Exception as e:
@@ -103,123 +194,16 @@ class GpsController(Node):
             self.get_logger().info(f"{e}")
 
 
-    def controller(self):
-        """
-        Main controller code. Generates path from current position to 
-        target position, then starts navigating along the path.
-
-        When robot gets close enough to next waypoint, iterate that until 
-        we run out of waypoints. Calculate steering command with function
-        and apply to the VESC.
-        """
-        self.get_logger().info("controlling")
-
-        # If we're running, calculate the steering
-        if self.running:
-            # Calculate distance to goal waypoint
-
-            # Option 1: Using our own distance function
-            # distance_to_goal = self.distance_between_gps_points(self.current_position, self.target_position)
-
-            # Option 2: Using OSMnx distance function
-            distance_to_goal = distance.great_circle_vec(self.current_position[0], self.current_position[1], self.target_position[0], self.target_position[1])
-            
-            self.get_logger().info(f"Distance: {distance_to_goal}")
-            # If we're close enough to the waypoint, iterate waypoints.
-            if distance_to_goal <= self.proxim_threshold:
-                self.get_logger().info(f"Completed Waypoint {self.target_index}: ({self.target_position[0]} ,{self.target_position[1]})")
-                self.target_index += 1
-
-                # If we're done with the path, set finished to true
-                if self.target_index == self.target_final:
-                    self.get_logger().info(f"Completed all waypoints, idiling")
-                    self.finished = True
-                # Otherwise, increment the target position to the next pos in the path
-                else:
-                    self.target_position = self.path[self.target_index]
-            
-            # If we aren't close enough to waypoint, calculate pid
-            else:
-                delta_x, delta_y, delta_theta = self.calculate_steering()
-                msg: list[float] = [float(delta_y), float(delta_x), float(delta_theta)]
-                self.error_msg.data = msg
-                self.error_publisher.publish(self.error_msg)
-
-        # If we aren't finished and we're not running, calculate the path
-        elif not self.finished and not self.running:
-            if self.current_position[0] != 0:
-                self.get_path()
-                self.get_logger().info("Path Received!")
-            else:
-                self.get_logger().info("Waiting on GPS fix")
-
-        # Otherwise, we're finished and not running so do nothing
-        else:
-            pass
-    
-
-    def calculate_steering(self):
-        """
-        Function to calculate steering based on difference
-        between target bearing and current bearing. 
-
-        Can be configured to use IMU for current heading, or calculate
-        current heading based on previous pos and current pos
-        """
-
-        # Get target bearing (between current pos and target pos)
-        # Option 1: Using OXMnx bearing function
-        bearing_to_goal = bearing.calculate_bearing(self.current_position[0], self.current_position[1], self.target_position[0], self.target_position[1])
-        bearing_to_previous = bearing.calculate_bearing(self.previous_position[0], self.previous_position[1], self.current_position[0], self.current_position[1])
-
-        # Option 2: Use bearing function that we built ourself
-        # bearing_to_goal = self.bearing_between_gps_points(self.current_position, self.target_position)
-        # bearing_to_previous = self.bearing_between_gps_points(self.previous_position, self.current_position)
-
-        # Get current bearing 
-        # Option 1: Using IMU reading for current bearing
-        current_bearing = self.current_heading
-        
-        # Option 2: Using Previous GPS reading for current bearing
-        # current_bearing = bearing_to_previous
-        self.get_logger().info(f"Headings: To Goal: {bearing_to_goal}, Current: {current_bearing}, To Previous: {bearing_to_previous}")
-
-        # Calculate PID Errors
-        delta_x = distance.great_circle_vec(self.current_position[0], self.current_position[1], self.target_position[0], self.target_position[1])
-        delta_y = delta_x
-        
-        # Change heading error to be on -180 to 180 scale
-        delta_theta = current_bearing - bearing_to_goal
-        if delta_theta < -180:
-            delta_theta += 360
-        elif delta_theta > 180:
-            delta_theta -= 360
-        delta_theta = delta_theta / 180.0  # normalize
-        
-        return delta_x, delta_y, delta_theta
-
     def distance_between_gps_points(self, pos1, pos2):
         """
         Reference for formulas:
         https://www.movable-type.co.uk/scripts/latlong.html
         """
-        # Setup variables (converting to radians and calculating deltas)
         lat1 = pos1[0]
         lon1 = pos1[1]
         lat2 = pos2[0]
         lon2 = pos2[1]
-        radius = 6371e3
-        scaler = math.pi/180
-        phi1 = lat1 * scaler
-        phi2 = lat2 * scaler
-        delta_phi = (lat2 - lat1) * scaler
-        delta_lambda = (lon2 - lon1) * scaler
-
-        # Calculate Distance using Haversine formula
-        a = (math.sin(delta_phi/2) * math.sin(delta_phi/2)) + \
-            (math.cos(phi1) * math.cos(phi2) * math.sin(delta_lambda/2) * math.sin(delta_lambda/2))
-        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
-        d = radius * c
+        d = distance.great_circle_vec(lat1, lon1, lat2, lon2)
         return d
 
 
@@ -228,25 +212,12 @@ class GpsController(Node):
         Reference for formulas:
         https://www.movable-type.co.uk/scripts/latlong.html
         """
-        # Setup variables (converting to radians)
         lat1 = pos1[0]
         lon1 = pos1[1]
         lat2 = pos2[0]
         lon2 = pos2[1]
-        scaler = math.pi / 180
-        phi1= lat1 * scaler
-        phi2 = lat2 * scaler
-        lambda1 = lon1 * scaler
-        lambda2 = lon2 * scaler
-
-        # Calculate Angle
-        y = math.sin(lambda2 - lambda1) * math.cos(phi2)
-        x = (math.cos(phi1) * math.sin(phi2)) - (math.sin(phi1) * math.cos(phi2) * math.cos(lambda2 - lambda1))
-        theta = math.atan2(y, x)
-
-        # Adjust Angle to be on 0 to 360 degree scale
-        bearing = ((theta*180/math.pi) + 360) % 360
-        return bearing
+        b = bearing.calculate_bearing(lat1, lon1, lat2, lon2)
+        return b
 
 
     def shutdown_vesc(self):
