@@ -3,6 +3,7 @@ import math
 from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped
 from sensor_msgs.msg import Imu
+from std_msgs.msg import Float32MultiArray
 from osmnx import bearing, distance
 from pyvesc import VESC
 from .generate_path import generate_path
@@ -17,6 +18,7 @@ class GpsController(Node):
         refresh_hz = 5  # refresh rate of controller
         imu_msg = '/imu' 
         gps_msg = '/gps'
+        error_topic_name = '/error'
 
         # Path Planner Params
         self.target_position = (32.867948, -117.203287)
@@ -26,28 +28,19 @@ class GpsController(Node):
 
         # Vesc Steering Params
         self.steering_gain = 0.02  # gain value for steering algorithm
-        vesc_port = "/dev/ttyACM0"
         self.max_right_steering = 1.0
         self.max_left_steering = 0.0
         self.straight_steering = 0.5
-        self.max_rpm_value = 20000
 
-        # Create Vesc Object
-        try:
-            self.vesc = VESC(serial_port=vesc_port, has_sensor=False, start_heartbeat=True, baudrate=115200)
-            self.vesc.set_rpm(0)
-            self.get_logger().info("Succesfully Connected to VESC!")
-
-        except Exception as e:
-            self.get_logger().info(f"Could not connect to VESC, {e}")
-            exit()
-
-        # Create Subscribers
+        # Create Subscribers and Publisher
         self.imu_subscriber = self.create_subscription(Imu, imu_msg, self.imu_callback, 10)
         self.gps_subscriber = self.create_subscription(PoseStamped, gps_msg, self.gps_callback, 10)
+        self.error_publisher = self.create_publisher(Float32MultiArray, error_topic_name, 10)
+        self.error_msg = Float32MultiArray()
         self.current_heading = 0.0
         self.current_position = (0, 0)
         self.previous_position = (0, 0)
+        
 
         # Set Path variables
         self.target_index = 0
@@ -145,13 +138,12 @@ class GpsController(Node):
                 else:
                     self.target_position = self.path[self.target_index]
             
-            # If we aren't close enough to waypoint, calculate steering
+            # If we aren't close enough to waypoint, calculate pid
             else:
-                command = self.calculate_steering()
-
-                # Set the VESC RPM and Steering Angle
-                self.vesc.set_rpm(int(self.max_rpm_value * 0.5))
-                self.vesc.set_servo(float(command))
+                delta_x, delta_y, delta_theta = self.calculate_steering()
+                msg: list[float] = [float(delta_y), float(delta_x), float(delta_theta)]
+                self.error_msg.data = msg
+                self.error_publisher.publish(self.error_msg)
 
         # If we aren't finished and we're not running, calculate the path
         elif not self.finished and not self.running:
@@ -163,7 +155,6 @@ class GpsController(Node):
 
         # Otherwise, we're finished and not running so do nothing
         else:
-            self.vesc.set_rpm(0)
             pass
     
 
@@ -191,19 +182,19 @@ class GpsController(Node):
         
         # Option 2: Using Previous GPS reading for current bearing
         # current_bearing = bearing_to_previous
+        self.get_logger().info(f"Headings: To Goal: {bearing_to_goal}, Current: {current_bearing}, To Previous: {bearing_to_previous}")
 
-        # Calculate steering command using gain factor
-        steering_command = self.steering_gain * (bearing_to_goal - current_bearing)
-
-        # Clamp the steering command to max right and max left
-        if steering_command > self.max_right_steering:
-            steering_command = self.max_right_steering
-        elif steering_command < self.max_left_steering:
-            steering_command = self.max_left_steering
+        # Calculate PID Errors
+        # Option 1: Using y2-y1 and x2-x1
+        delta_x = self.current_position[0] - self.target_position[0]
+        delta_y = self.current_position[1] - self.target_position[1]
         
-        self.get_logger().info(f"Headings: To Goal: {bearing_to_goal}, Current: {current_bearing}, To Previous: {bearing_to_previous}, Command: {steering_command}")
-        return steering_command
-
+        # Option 2: Using y as distance to waypoint and x as 0
+        delta_x = 0
+        delta_y = distance.great_circle_vec(self.current_position[0], self.current_position[1], self.target_position[0], self.target_position[1])
+        
+        delta_theta = current_bearing - bearing_to_goal
+        return delta_x, delta_y, delta_theta
 
     def distance_between_gps_points(self, pos1, pos2):
         """
