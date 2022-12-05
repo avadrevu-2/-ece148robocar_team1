@@ -14,13 +14,13 @@ class IMURawPublisher(Node):
         timer_period = 1.0 / hz 
         # open serial port
         self.ser = serial.Serial('/dev/ttyACM1', 9600)
-        # GPS message
+        # IMU message
         self.imu_msg = Imu()
         self.get_logger().info("Setup Complete")
-        self.timer = self.create_timer(timer_period, self.talker_callback)
+        self.timer = self.create_timer(timer_period, self.imu_pub_callback)
 
 
-    def talker_callback(self):
+    def imu_pub_callback(self):
         try:
             # Read from Serial
             msg = self.ser.readline().decode("utf-8")
