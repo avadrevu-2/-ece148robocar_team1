@@ -13,7 +13,7 @@ class IMURawPublisher(Node):
         hz = 52.0
         timer_period = 1.0 / hz 
         # open serial port
-        self.ser = serial.Serial('/dev/ttyACM1', 9600)
+        self.ser = serial.Serial('/dev/ttyACM0', 9600)
         # IMU message
         self.imu_msg = Imu()
         self.get_logger().info("Setup Complete")

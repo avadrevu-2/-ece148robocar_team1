@@ -121,8 +121,16 @@ class GpsController(Node):
         a = self.current_waypoint_finish[1] - self.current_waypoint_start[1]
         b = self.current_waypoint_start[0] - self.current_waypoint_finish[0]
         c = self.current_waypoint_finish[0]*self.current_waypoint_start[1] - self.current_waypoint_start[0]*self.current_waypoint_finish[1]
-        cross_track_error = abs((a*self.current_position[0]) + (b*self.current_position[1]) + c) / math.sqrt((a*a)+(b*b))
-        
+        cross_track_error_2 = math.sqrt((a*self.current_position[0])**2 + (b*self.current_position[1])**2 + c**2) / math.sqrt((a*a)+(b*b))
+
+        # Cross Track Error different Formula
+        R = 6371e3
+        d = self.distance_between_gps_points(self.current_waypoint_start, self.current_position) / R
+        delta_1 = self.bearing_between_gps_points(self.current_waypoint_start, self.current_position) * (math.pi / 180)
+        delta_2 = self.bearing_between_gps_points(self.current_waypoint_start, self.current_waypoint_finish) * (math.pi / 180)
+        self.get_logger().info(f"D: {d}, delta1: {delta_1}, delta2: {delta_2}")
+        cross_track_error = math.asin(math.sin(d)*math.sin(delta_1-delta_2)) * R;
+
         # Heading Error
         bearing_to_goal = self.bearing_between_gps_points(self.current_position, self.current_waypoint_finish)
         current_bearing = self.current_heading
@@ -137,7 +145,7 @@ class GpsController(Node):
             delta_theta -= 360
         delta_theta = delta_theta / 180.0  # normalize from -1 to 1
         
-        self.get_logger().info(f"Delta Theta: {delta_theta}, Cross Track: {cross_track_error}")
+        self.get_logger().info(f"Delta Theta: {delta_theta}, Cross Track: {cross_track_error}, Cross Track 2: {cross_track_error_2}")
         return cross_track_error, delta_theta
 
 

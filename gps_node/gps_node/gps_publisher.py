@@ -13,7 +13,7 @@ class GpsPublisher(Node):
         hz = 20
         timer_period = 1.0 / hz
         # open serial port
-        self.ser = serial.Serial('/dev/ttyUSB2', 115200)
+        self.ser = serial.Serial('/dev/ttyUSB1', 115200)
         # GPS message
         self.gps_msg = PoseStamped()
         self.latitude = 0
