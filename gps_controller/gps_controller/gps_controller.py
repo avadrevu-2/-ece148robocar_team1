@@ -74,16 +74,15 @@ class GpsController(Node):
             self.get_logger().info(f"Path: {self.path}")
             
             # Set first and final target positions of path
-            self.target_position = self.path[0]
-            self.target_index = 0
+            self.target_position = self.path[self.target_index]
             self.target_final = len(self.path)
             self.running = True  # Starts the steering controls
 
         except Exception as e:
             self.get_logger().info(f"Couldn't parse path, {e}")
-            self.running = False
 
-            # If we can't generate a path, set finished to true to avoid doing anything
+            # If we can't generate a path, set finished to True and running to False
+            self.running = False
             self.finished = True
         
 
@@ -120,8 +119,8 @@ class GpsController(Node):
         we run out of waypoints. Calculate steering command with function
         and apply to the VESC.
         """
-
         self.get_logger().info("controlling")
+
         # If we're running, calculate the steering
         if self.running:
             # Calculate distance to goal waypoint
@@ -154,7 +153,7 @@ class GpsController(Node):
                 self.vesc.set_rpm(int(self.max_rpm_value * 0.5))
                 self.vesc.set_servo(float(command))
 
-        # If we aren't finished and were not running, calculate the path
+        # If we aren't finished and we're not running, calculate the path
         elif not self.finished and not self.running:
             if self.current_position[0] != 0:
                 self.get_path()
