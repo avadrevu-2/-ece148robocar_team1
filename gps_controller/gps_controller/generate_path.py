@@ -3,11 +3,15 @@ import networkx as nx
 from osmnx import osm_xml
 import os
 
+# Params
 graphs_folder = '/home/projects/ros2_ws/src/ucsd_robocar_hub2/gps_controller/graphs'
 graph_file = 'current_path.osm'
-graph_path = os.path.join(graphs_folder, graph_file)
 
-def generate_path(origin_point, target_point, perimeter, logger):
+
+def generate_path(origin_point, target_point, perimeter, logger, mode):
+    """
+    Reference: https://github.com/ThomasAFink/optimal_path_dijkstra_for_data_science/blob/main/dijkstra_map.py
+    """
     try:
         # Split points into lat lon
         origin_lat = origin_point[0]
@@ -33,6 +37,7 @@ def generate_path(origin_point, target_point, perimeter, logger):
         logger.info("Setup Points")
         
         # If graph file already exists, load that for environment
+        graph_path = os.path.join(graphs_folder, graph_file)
         if os.path.exists(graph_path):
             roadgraph = ox.graph_from_xml(graph_path)
             logger.info("Loaded graph file from XML")
@@ -40,9 +45,17 @@ def generate_path(origin_point, target_point, perimeter, logger):
         # Otherwise, download a new one and save it
         else:
             logger.info("Couldn't find graph file, downloading")
+
+            # Acceptable modes for map
             modes = ['drive', 'bike', 'walk']
+            if mode not in modes:
+                mode = modes[0]  # default to drive if not one of these three
+            
+            # download graph file
             roadgraph = ox.graph_from_bbox(north+perimeter, south-perimeter, east+perimeter, west-perimeter, network_type=modes[0], simplify=False)
             logger.info("Downloaded graph file, saving")
+
+            # save graph file
             osm_xml.save_graph_xml(roadgraph, filepath=graph_path)
             logger.info("Downloaded graph file and saved it")
 

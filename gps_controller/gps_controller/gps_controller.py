@@ -1,14 +1,12 @@
 import rclpy 
+import math
 from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped
 from sensor_msgs.msg import Imu
-import json
-import math
-import osmnx as ox
 from osmnx import bearing, distance
-
 from pyvesc import VESC
 from .generate_path import generate_path
+
 
 class GpsController(Node):
     def __init__(self):
@@ -16,28 +14,33 @@ class GpsController(Node):
         super().__init__('gps_controller')
         
         # Adjustable Params
-        vesc_port = "/dev/ttyACM0"
-        refresh_hz = 5
-        imu_msg = '/imu'
+        refresh_hz = 5  # refresh rate of controller
+        imu_msg = '/imu' 
         gps_msg = '/gps'
-        perimeter = 0.01
+
+        # Path Planner Params
+        self.target_position = (32.867948, -117.203287)
+        self.perimeter = 0.01  # Perimeter around target position to generate map
+        self.mode = 'drive'  # Mode for map, acceptable values are 'drive', 'bike', 'walk'
+        self.proxim_threshold = 0.5  # distance in m from waypoint to be considered complete
+
+        # Vesc Steering Params
+        self.steering_gain = 0.02  # gain value for steering algorithm
+        vesc_port = "/dev/ttyACM0"
         self.max_right_steering = 1.0
         self.max_left_steering = 0.0
         self.straight_steering = 0.5
         self.max_rpm_value = 20000
-        self.path_location = "/home/projects/ros2_ws/src/ucsd_robocar_hub2/gps_controller/paths/test_path.json"
-        self.steering_gain = 0.02
-        self.proxim_threshold = 1.0  # distance in m from waypoint to be considered complete
 
-        # # Create Vesc Object
-        # try:
-        #     self.vesc = VESC(serial_port=vesc_port, has_sensor=False, start_heartbeat=True, baudrate=115200)
-        #     self.vesc.set_rpm(0)
-        #     self.get_logger().info("Succesfully Connected to VESC!")
+        # Create Vesc Object
+        try:
+            self.vesc = VESC(serial_port=vesc_port, has_sensor=False, start_heartbeat=True, baudrate=115200)
+            self.vesc.set_rpm(0)
+            self.get_logger().info("Succesfully Connected to VESC!")
 
-        # except Exception as e:
-        #     self.get_logger().info(f"Could not connect to VESC, {e}")
-        #     exit()
+        except Exception as e:
+            self.get_logger().info(f"Could not connect to VESC, {e}")
+            exit()
 
         # Create Subscribers
         self.imu_subscriber = self.create_subscription(Imu, imu_msg, self.imu_callback, 10)
@@ -45,30 +48,44 @@ class GpsController(Node):
         self.current_heading = 0.0
         self.current_position = (0, 0)
         self.previous_position = (0, 0)
-        
-        # Get Path
-        path_input = []
+
+        # Set Path variables
+        self.target_index = 0
+        self.target_final = 0
         self.path = []
+        self.running = False
+        self.finished = False
+        self.get_logger().info("Setup Complete")
+        self.timer = self.create_timer(1.0 / refresh_hz, self.controller)
+        
+    
+    def get_path(self):
+        """
+        Calls the generate path function using current position and target position to
+        create a path of points for the robot to follow.
+
+        Also sets the target_position as the first waypoint, and sets up the final
+        target in the path array.
+        """
         try:
-            with open(self.path_location) as file:
-                data = json.load(file)
-                for value in data['coordinates']:
-                    path_input.append((value[1], value[0]))
-                self.path = generate_path(path_input[0], path_input[5], perimeter, self.get_logger())
-                self.get_logger().info(f"Path: {self.path}")
+            # Call generate path function to create a path from current to target position
+            self.path = generate_path(self.current_position, self.target_position, self.perimeter, self.get_logger(), self.mode)
+            self.get_logger().info(f"Current Position: {self.current_position}, Target Position: {self.target_position}")
+            self.get_logger().info(f"Path: {self.path}")
+            
+            # Set first and final target positions of path
+            self.target_position = self.path[0]
+            self.target_index = 0
+            self.target_final = len(self.path)
+            self.running = True  # Starts the steering controls
 
         except Exception as e:
             self.get_logger().info(f"Couldn't parse path, {e}")
-        
+            self.running = False
 
-        # Set first and final target positions of path
-        self.target_position = self.path[0]
-        self.target_index = 0
-        self.target_final = len(self.path)
-        self.running = True
-        self.get_logger().info("Setup Complete")
-        self.timer = self.create_timer(1.0 / refresh_hz, self.controller)
-    
+            # If we can't generate a path, set finished to true to avoid doing anything
+            self.finished = True
+        
 
     def imu_callback(self, imu_msg: Imu):
         try:
@@ -95,7 +112,17 @@ class GpsController(Node):
 
 
     def controller(self):
+        """
+        Main controller code. Generates path from current position to 
+        target position, then starts navigating along the path.
+
+        When robot gets close enough to next waypoint, iterate that until 
+        we run out of waypoints. Calculate steering command with function
+        and apply to the VESC.
+        """
+
         self.get_logger().info("controlling")
+        # If we're running, calculate the steering
         if self.running:
             # Calculate distance to goal waypoint
 
@@ -111,10 +138,10 @@ class GpsController(Node):
                 self.get_logger().info(f"Completed Waypoint {self.target_index}: ({self.target_position[0]} ,{self.target_position[1]})")
                 self.target_index += 1
 
-                # If we're done with the path, set running to false
+                # If we're done with the path, set finished to true
                 if self.target_index == self.target_final:
                     self.get_logger().info(f"Completed all waypoints, idiling")
-                    self.running = False
+                    self.finished = True
                 # Otherwise, increment the target position to the next pos in the path
                 else:
                     self.target_position = self.path[self.target_index]
@@ -126,21 +153,40 @@ class GpsController(Node):
                 # Set the VESC RPM and Steering Angle
                 self.vesc.set_rpm(int(self.max_rpm_value * 0.5))
                 self.vesc.set_servo(float(command))
+
+        # If we aren't finished and were not running, calculate the path
+        elif not self.finished and not self.running:
+            if self.current_position[0] != 0:
+                self.get_path()
+                self.get_logger().info("Path Received!")
+            else:
+                self.get_logger().info("Waiting on GPS fix")
+
+        # Otherwise, we're finished and not running so do nothing
         else:
             self.vesc.set_rpm(0)
+            pass
     
 
     def calculate_steering(self):
-        # Calculate bearing differential
+        """
+        Function to calculate steering based on difference
+        between target bearing and current bearing. 
 
-        # Option 1: Use bearing function that we built ourself
-        # bearing_to_goal = self.bearing_between_gps_points(self.current_position, self.target_position)
-        # bearing_to_previous = self.bearing_between_gps_points(self.previous_position, self.current_position)
+        Can be configured to use IMU for current heading, or calculate
+        current heading based on previous pos and current pos
+        """
 
-        # Option 2: Using OXMnx bearing function
+        # Get target bearing (between current pos and target pos)
+        # Option 1: Using OXMnx bearing function
         bearing_to_goal = bearing.calculate_bearing(self.current_position[0], self.current_position[1], self.target_position[0], self.target_position[1])
         bearing_to_previous = bearing.calculate_bearing(self.previous_position[0], self.previous_position[1], self.current_position[0], self.current_position[1])
 
+        # Option 2: Use bearing function that we built ourself
+        # bearing_to_goal = self.bearing_between_gps_points(self.current_position, self.target_position)
+        # bearing_to_previous = self.bearing_between_gps_points(self.previous_position, self.current_position)
+
+        # Get current bearing 
         # Option 1: Using IMU reading for current bearing
         current_bearing = self.current_heading
         
@@ -212,7 +258,7 @@ class GpsController(Node):
 
 
     def shutdown_vesc(self):
-        self.vesc.__exit__(None, None, None)
+        # self.vesc.__exit__(None, None, None)
         self.get_logger().info("Shutdown VESC")
 
 def main(args=None):
