@@ -3,7 +3,6 @@ from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped
 from sensor_msgs.msg import Imu
 import json
-import os
 import math
 
 from pyvesc import VESC
@@ -115,6 +114,9 @@ class GpsController(Node):
                 # Set the VESC RPM and Steering Angle
                 self.vesc.set_rpm(int(self.max_rpm_value * 0.5))
                 self.vesc.set_servo(float(command))
+        else:
+            self.vesc.set_rpm(0)
+    
     
     def calculate_steering(self):
         # Calculate bearing differential
@@ -190,6 +192,9 @@ class GpsController(Node):
         bearing = ((theta*180/math.pi) + 360) % 360
         return bearing
 
+
+    def destroy_node(self):
+        self.vesc.__exit__(None, None, None)
 
 def main(args=None):
     rclpy.init(args=args) # initialize the ROS communication
