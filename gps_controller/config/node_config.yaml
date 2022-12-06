@@ -4,3 +4,4 @@
 gps_launch: 1
 imu_launch: 1
 pid_launch: 1
+ld06_launch: 1

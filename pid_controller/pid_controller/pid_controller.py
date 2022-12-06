@@ -1,12 +1,14 @@
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float32MultiArray
+from sensor_msgs.msg import LaserScan
 from pyvesc import VESC
 import time
 import numpy as np
 
 NODE_NAME = 'pid_controller'
 ERROR_TOPIC_NAME = '/error'
+LIDAR_TOPIC_NAME = '/scan'
 
 
 class PidController(Node):
@@ -17,6 +19,25 @@ class PidController(Node):
         # Error subscriber
         self.error_subscriber = self.create_subscription(Float32MultiArray, ERROR_TOPIC_NAME, self.error_measurement, self.QUEUE_SIZE)
         self.error_subscriber
+
+        self.laser_subscriber = self.create_subscription(LaserScan, LIDAR_TOPIC_NAME, self.lidar_callback, self.QUEUE_SIZE)
+        self.laser_subscriber
+
+        self.lidar_properties_set = False
+        self.default_viewing_angle = 360
+        self.default_front_degree_angle = 0
+        self.default_right_degree_angle = 90
+        self.default_left_degree_angle = 270
+        self.range_max = None
+        self.range_min = None
+        self.num_scans = None
+        self.angle_increment = None
+        self.angle_min_radians = None
+        self.angle_max_radians = None
+        self.scan_ranges = None
+        self.max_stop_distance = 0.5 # [meters]
+        self.desired_front_FOV = 10 # [degrees]
+
 
         # Default actuator values
         self.declare_parameters(
@@ -105,6 +126,27 @@ class PidController(Node):
         self.e_theta = self.e_theta_buffer
         self.current_time = self.get_clock().now().to_msg()
 
+    
+    def lidar_callback(self, data):
+        if not self.lidar_properties_set:
+            self.range_max = data.range_max
+            self.range_min = data.range_min
+            self.num_scans = len(np.array(data.ranges))
+            self.angle_increment = data.angle_increment
+            self.angle_min_radians = data.angle_min
+            self.angle_max_radians = data.angle_max
+            self.lidar_properties_set = True
+      
+        scan_ranges = np.array(data.ranges)
+        self.scan_ranges = np.nan_to_num(scan_ranges, neginf=self.range_max, posinf=self.range_max, nan=self.range_max)
+        
+        self.num_indices = round(np.deg2rad(self.desired_front_FOV)/self.angle_increment)
+
+        self.front_right = self.scan_ranges[0:self.num_indices]
+        self.front_left = self.scan_ranges[::-1][0:self.num_indices]
+        self.selected_range = np.concatenate((self.front_right,self.front_left))
+
+
 
     def controller(self):
         """
@@ -122,6 +164,16 @@ class PidController(Node):
             self.vesc.set_servo(self.no_steering)
             return
         
+        # Get latest lidar scan
+        self.lidar_callback()
+
+        # If there is an object closer than set distance, stop controlling    
+        if not all(self.selected_range > self.max_stop_distance):
+            self.get_logger.info("Stop the robot, obstacle detected")
+            self.vesc.set_rpm(int(self.zero_speed))
+            self.vesc.set_servo(self.no_steering)
+            return
+
         # Cross Track PID terms
         self.proportional_error = self.Kp * self.e_y
         self.derivative_error = self.Kd * (self.e_y - self.e_y_1) / self.Ts

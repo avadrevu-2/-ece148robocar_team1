@@ -4,3 +4,4 @@
 gps_launch: ['gps_node', 'gps_package_launch_file.launch.py']
 imu_launch: ['imu_node', 'imu_node_launch_file.launch.py']
 pid_launch: ['pid_controller', 'pid_controller_launch_file.launch.py']
+ld06_launch: ['ucsd_robocar_sensor2_pkg','lidar_ld06.launch.py']
