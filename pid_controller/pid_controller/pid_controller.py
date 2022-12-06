@@ -15,7 +15,7 @@ class PidController(Node):
         self.QUEUE_SIZE = 10
 
         # Error subscriber
-        self.error_subscriber = self.create_subscription(Float32MultiArray, ERROR_TOPIC_NAME, self.error_measurement, self.QUEUE_SIZE, callback_group=self.error_thread)
+        self.error_subscriber = self.create_subscription(Float32MultiArray, ERROR_TOPIC_NAME, self.error_measurement, self.QUEUE_SIZE)
         self.error_subscriber
 
         # Default actuator values
@@ -73,7 +73,7 @@ class PidController(Node):
 
         except Exception as e:
             self.get_logger().info(f"Could not connect to VESC, {e}")
-            exit()
+            rclpy.shutdown()
 
         self.get_logger().info(
             f'\n Kp_steering: {self.Kp}'

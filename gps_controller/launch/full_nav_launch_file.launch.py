@@ -61,13 +61,14 @@ def generate_launch_description():
         try:
             ld.add_action(generate_a_launch_description(pkg_name, launch_name))
         except:
+            print(f"Exception on {key}")
             pass
         print(f"Trying to start: {launch_name} from {pkg_name}")
     
-    pid_controller = Node(
+    gps_controller = Node(
            package='gps_controller',
-           executable='pid_controller')
+           executable='gps_controller')
  
-    ld.add_action(pid_controller)
+    ld.add_action(gps_controller)
 
     return ld
