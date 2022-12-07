@@ -140,29 +140,46 @@ class GpsController(Node):
         # Average the two cross track calculations
         cross_track_distance = ((cross_track_distance_1 + cross_track_distance_2) / 2.0) 
 
-        # Optional: Scale cross track error by distance traveled on path so far
+        # Scale cross track error
         """
         Use triangle formed by path start and finish waypoints and current position.
-        Right angle triangle with a as the cross_track distance, b as the distance left on the path, and c as
-        the distance to the goal from the current position. Then compute distance traveled on path so far
-        by subtracting the path distance from distance left on path.
+        
+         (x, y) -> path start
+           |\
+           |t\  c
+        b  |  \  
+           |_a_\   
+        d  |     (x, y) -> current position
+           |
+          (x, y) -> path finish
+        
+        a = cross track distance computed above
+        c = distance to goal
+        b = distance left on path
+        d = distance traveled on path
+        b + d = total path distance
+        t = angle difference between robot and path
+        
+        Compute b using pythagorean theorem, then we can subtract
+        path distance from b to get d. We can also solve for t using 
+        inverse tangent of a/b, or in python atan2(b, a) to produce 
+        that angle between -pi and pi. 
+        
+        Finally, we scale the original a value (cross track distance) by 
+        the d value (distance traveled on path) to get a cross track
+        error value, and we scale the t (angle difference) by pi.
         """
+        # Calculate
         path_distance = self.distance_between_gps_points(self.current_waypoint_start, self.current_waypoint_finish)
-        distance_left_on_path = math.sqrt(distance_to_goal**2 - cross_track_distance**2)  # sqrt(c**2 - a**2) = b
+        distance_left_on_path = math.sqrt(distance_to_goal**2 - cross_track_distance**2)
         distance_traveled_on_path = path_distance - distance_left_on_path
-       
-        """
-        Delta error can be calculated using the triangle described above, using atan2 to get values
-        between -pi and pi, which we can then scale by pi.
-        Cross track distance is then scaled by the distance traveled on the path to get 
-        cross track error.
-        """
-        delta_error = math.atan2(distance_left_on_path, cross_track_error) / math.pi
+        delta_diff = math.atan2(distance_left_on_path, cross_track_error)
+        # Scale
+        delta_error = delta_diff / math.pi
         cross_track_error = cross_track_distance / distance_traveled_on_path
         
         ###############################################################################
         # Heading Error
-        
         bearing_to_goal = self.bearing_between_gps_points(self.current_position, self.current_waypoint_finish)
         current_bearing = self.current_heading
 
