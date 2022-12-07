@@ -37,6 +37,7 @@ class PidController(Node):
         self.scan_ranges = None
         self.max_stop_distance = 0.5 # [meters]
         self.desired_front_FOV = 10 # [degrees]
+        self.stop_threshold = 0.4 # percentage of lidar values detecting object needed for car to stop
 
 
         # Default actuator values
@@ -167,8 +168,16 @@ class PidController(Node):
         # Get latest lidar scan
         self.lidar_callback()
 
-        # If there is an object closer than set distance, stop controlling    
-        if not all(self.selected_range > self.max_stop_distance):
+        self.object_detected = False
+        i = 0
+        for value in self.selected_range:
+            if value < self.max_stop_distance:
+                i += 1
+        if i >= len(self.selected_range)*self.stop_threshold:
+            self.object_detected = True
+
+        # If there is an object closer than set distance, stop controlling
+        if self.object_detected:
             self.get_logger.info("Stop the robot, obstacle detected")
             self.vesc.set_rpm(int(self.zero_speed))
             self.vesc.set_servo(self.no_steering)
